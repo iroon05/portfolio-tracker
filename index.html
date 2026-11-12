@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Portfolio Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155',
+                            text: '#f8fafc',
+                            muted: '#94a3b8'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .tile-expand {
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8 flex flex-col items-center">
+    <div class="w-full max-w-2xl space-y-6">
+        
+        <!-- Header -->
+        <header class="flex flex-col items-center text-center space-y-3 pt-2">
+            <h1 class="text-3xl font-extrabold tracking-tight text-slate-100 flex items-center gap-2">
+                <span>🌐</span> Global Portfolio
+            </h1>
+            <p class="text-xs text-slate-400">Real-Time Market Data, Gold (XAU) & Aggregate SMA Valuation</p>
+            <button onclick="fetchAllData()" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm rounded-xl transition shadow-lg shadow-blue-600/20 flex items-center gap-2">
+                <svg id="refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span id="update-btn-text">Update</span>
+            </button>
+        </header>
+
+        <!-- Top Card: Full-Width Global Aggregate -->
+        <div id="global-tile" onclick="toggleExpand('global')" class="bg-gradient-to-r from-blue-950/40 via-slate-900 to-slate-900 border border-blue-500/30 hover:border-blue-500/50 p-6 rounded-2xl shadow-2xl cursor-pointer transition relative overflow-hidden">
+            <div class="absolute top-0 right-0 p-6 opacity-10 text-5xl select-none">🌐</div>
+            <div class="flex items-center justify-between relative z-10">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-3xl shrink-0">🌐</span>
+                    <div class="min-w-0">
+                        <h2 class="text-lg font-bold text-slate-100 truncate">Global Portfolio</h2>
+                        <span class="text-[11px] text-blue-400 font-semibold tracking-wide uppercase">Top-Level Aggregate</span>
+                    </div>
+                </div>
+                <div class="text-right shrink-0 ml-4">
+                    <div id="global-open" class="text-2xl font-extrabold font-mono text-emerald-400">+1.41%</div>
+                    <div id="global-open-gold" class="text-[10px] text-amber-400 font-mono tracking-wider">+0.89% vs XAU</div>
+                </div>
+            </div>
+
+            <!-- Collapsible Global Details -->
+            <div id="expand-global" class="tile-expand max-h-0 overflow-hidden opacity-0">
+                <div class="pt-4 mt-4 border-t border-slate-800/80 grid grid-cols-2 gap-4 text-xs font-mono mb-3">
+                    <div>
+                        <div class="text-slate-400 text-[11px] uppercase">Last 7 Days (Nominal / vs Gold)</div>
+                        <div id="global-7d" class="text-sm font-bold text-emerald-400">+1.35%</div>
+                        <div id="global-7d-gold" class="text-xs font-semibold text-amber-400">+0.60% vs XAU</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-slate-400 text-[11px] uppercase">Last 30 Days (Nominal / vs Gold)</div>
+                        <div id="global-30d" class="text-sm font-bold text-rose-400">-2.67%</div>
+                        <div id="global-30d-gold" class="text-xs font-semibold text-amber-400 font-mono">-1.15% vs XAU</div>
+                    </div>
+                </div>
+
+                <!-- Global Portfolio Moving Average Valuation Table -->
+                <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+                    <div class="text-xs font-mono mb-2 text-slate-400 uppercase tracking-wider text-center">Portfolio Moving Average Valuation</div>
+                    <div class="grid grid-cols-3 gap-2 text-xs text-center items-center">
+                        <div class="text-left font-sans text-[11px] text-slate-400">Moving Avg</div>
+                        <div class="text-slate-400 text-[11px] font-mono">Nominal</div>
+                        <div class="text-amber-400/90 text-[11px] font-mono">in Gold (XAU)</div>
+                        
+                        <div class="text-left font-sans text-slate-300 text-[11px]">7-Day SMA</div>
+                        <div id="global-sma7-nom" class="font-bold text-[11px] text-emerald-400">Cheap</div>
+                        <div id="global-sma7-gold" class="font-bold text-[11px] text-emerald-400">Cheap</div>
+
+                        <div class="text-left font-sans text-slate-300 text-[11px]">30-Day SMA</div>
+                        <div id="global-sma30-nom" class="font-bold text-[11px] text-emerald-400">Cheap</div>
+                        <div id="global-sma30-gold" class="font-bold text-[11px] text-emerald-400">Cheap</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2x2 Grid Layout for ETFs -->
+        <div class="grid grid-cols-2 gap-4" id="tickers-grid">
+            <!-- Populated via JavaScript -->
+        </div>
+
+        <!-- Data Source & Market Timestamp Status Bar -->
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
+            <div class="flex items-center gap-2">
+                <span id="sync-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                <span id="sync-status-text" class="text-slate-300 font-medium">Checking Live Feeds...</span>
+            </div>
+            <div class="text-slate-400 sm:text-right">
+                Data As Of: <span id="sync-timestamp" class="text-slate-200 font-semibold">Baseline Snapshot</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // =========================================================================
+        // PASTE YOUR CLOUDFLARE WORKER URL BELOW (e.g., "https://market-proxy.yourname.workers.dev")
+        // =========================================================================
+        const CLOUDFLARE_WORKER_URL = "market-proxy.jonas-horad.workers.dev";
+
+        const BASELINE_SNAPSHOT_DATE = "2026-11-11 16:30 UTC (Static Baseline)";
+
+        let portfolioData = [
+            { 
+                id: 'exv1', name: 'Europe 600 Banks', ticker: 'EXV1', yahooSymbol: 'EXV1.DE', stooqSymbol: 'exv1.de', icon: '🇪🇺', 
+                isin: 'DE000A0F5UJ7', exchange: 'Xetra (German Exchange)', 
+                open: 0.42, d7: 2.84, d30: -7.94, 
+                sma7Nom: 'Expensive', sma30Nom: 'Cheap', sma7Gold: 'Expensive', sma30Gold: 'Cheap',
+                expanded: false, historyMap: {}, ordered: [], lastMarketTime: null
+            },
+            { 
+                id: 'vusa', name: 'S&P 500 ETF', ticker: 'VUSA', yahooSymbol: 'VUSA.L', stooqSymbol: 'vusa.uk', icon: '🇺🇸', 
+                isin: 'IE00B3XXRP09', exchange: 'London Stock Exchange', 
+                open: 1.75, d7: 0.55, d30: -3.60, 
+                sma7Nom: 'Expensive', sma30Nom: 'Cheap', sma7Gold: 'Cheap', sma30Gold: 'Cheap',
+                expanded: false, historyMap: {}, ordered: [], lastMarketTime: null
+            },
+            { 
+                id: 'vuke', name: 'FTSE 100 ETF', ticker: 'VUKE', yahooSymbol: 'VUKE.L', stooqSymbol: 'vuke.uk', icon: '🇬🇧', 
+                isin: 'IE00B810Q511', exchange: 'London Stock Exchange', 
+                open: 0.68, d7: 0.16, d30: 1.68, 
+                sma7Nom: 'Expensive', sma30Nom: 'Expensive', sma7Gold: 'Cheap', sma30Gold: 'Expensive',
+                expanded: false, historyMap: {}, ordered: [], lastMarketTime: null
+            },
+            { 
+                id: 'xdjp', name: 'Nikkei 225 ETF', ticker: 'XDJP', yahooSymbol: 'XDJP.L', stooqSymbol: 'xdjp.uk', icon: '🇯🇵', 
+                isin: 'LU0839027447', exchange: 'London Stock Exchange', 
+                open: 2.78, d7: 1.84, d30: -0.82, 
+                sma7Nom: 'Expensive', sma30Nom: 'Cheap', sma7Gold: 'Expensive', sma30Gold: 'Cheap',
+                expanded: false, historyMap: {}, ordered: [], lastMarketTime: null
+            }
+        ];
+
+        let goldData = { open: 0.52, d7: 0.75, d30: -1.50, historyMap: {}, sortedPrices: [], lastMarketTime: null };
+        let globalValuation = { sma7Nom: 'Cheap', sma30Nom: 'Cheap', sma7Gold: 'Cheap', sma30Gold: 'Cheap' };
+        let syncState = { status: "Initializing...", dataDate: BASELINE_SNAPSHOT_DATE, isLive: false };
+
+        function calcVsGold(assetReturn, goldReturn) {
+            const rel = ((1 + assetReturn / 100) / (1 + goldReturn / 100)) - 1;
+            return parseFloat((rel * 100).toFixed(2));
+        }
+
+        function evaluateSMAStatus(pricesArray, period) {
+            if (!pricesArray || pricesArray.length === 0) return 'Cheap';
+            const slice = pricesArray.slice(-period);
+            const sum = slice.reduce((acc, val) => acc + val, 0);
+            const sma = sum / slice.length;
+            const currentPrice = slice[slice.length - 1];
+            return currentPrice < sma ? 'Cheap' : 'Expensive';
+        }
+
+        function buildDailyHistory(timestamps, closes) {
+            const map = {};
+            const ordered = [];
+            for (let i = 0; i < timestamps.length; i++) {
+                if (closes[i] != null) {
+                    const dateKey = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
+                    map[dateKey] = closes[i];
+                    ordered.push({ date: dateKey, close: closes[i], ts: timestamps[i] });
+                }
+            }
+            return { map, ordered };
+        }
+
+        // Builds gateway list prioritizing your dedicated Cloudflare Worker
+        function getProxyGateways() {
+            const gateways = [];
+            if (CLOUDFLARE_WORKER_URL && CLOUDFLARE_WORKER_URL !== "YOUR_CLOUDFLARE_WORKER_URL") {
+                const cleanWorkerUrl = CLOUDFLARE_WORKER_URL.replace(/\/$/, "");
+                gateways.push((url) => `${cleanWorkerUrl}/?url=${encodeURIComponent(url)}`);
+            }
+            // Backup public gateways if worker URL isn't configured yet
+            gateways.push(
+                (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
+            );
+            return gateways;
+        }
+
+        async function fetchJsonWithProxyRotator(targetUrl) {
+            const cacheBuster = `_cb=${Date.now()}`;
+            const bustedUrl = targetUrl.includes('?') ? `${targetUrl}&${cacheBuster}` : `${targetUrl}?${cacheBuster}`;
+            const gateways = getProxyGateways();
+
+            for (const buildGatewayUrl of gateways) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 7000);
+                    
+                    const res = await fetch(buildGatewayUrl(bustedUrl), { signal: controller.signal });
+                    clearTimeout(timeoutId);
+
+                    if (!res.ok) continue;
+                    const parsed = await res.json();
+
+                    if (parsed && parsed.chart && parsed.chart.result && parsed.chart.result[0]) {
+                        return parsed;
+                    }
+                } catch (err) {
+                    // Try next gateway
+                }
+            }
+            throw new Error(`All proxy gateways failed for ${targetUrl}`);
+        }
+
+        async function fetchStooqFallback(stooqSymbol) {
+            const stooqUrl = `https://stooq.com/q/d/l/?s=${stooqSymbol}&i=d`;
+            const gateways = getProxyGateways();
+
+            for (const buildGatewayUrl of gateways) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 7000);
+                    const res = await fetch(buildGatewayUrl(stooqUrl), { signal: controller.signal });
+                    clearTimeout(timeoutId);
+
+                    if (!res.ok) continue;
+                    const csvText = await res.text();
+                    const lines = csvText.trim().split('\n');
+                    if (lines.length < 10 || !lines[0].startsWith('Date')) continue;
+
+                    const recentLines = lines.slice(-45);
+                    const map = {};
+                    const ordered = [];
+
+                    for (const line of recentLines) {
+                        const cols = line.split(',');
+                        const dateStr = cols[0];
+                        const closeVal = parseFloat(cols[4]);
+                        if (dateStr && !isNaN(closeVal)) {
+                            map[dateStr] = closeVal;
+                            ordered.push({ date: dateStr, close: closeVal, ts: Math.floor(new Date(dateStr).getTime() / 1000) });
+                        }
+                    }
+
+                    if (ordered.length >= 2) {
+                        return { map, ordered, marketTime: ordered[ordered.length - 1].date + " (EOD)" };
+                    }
+                } catch (err) {
+                    // Continue
+                }
+            }
+            return null;
+        }
+
+        async function fetchGoldData() {
+            const targetUrl = `https://query2.finance.yahoo.com/v8/finance/chart/GC=F?range=45d&interval=1d`;
+            try {
+                const json = await fetchJsonWithProxyRotator(targetUrl);
+                const result = json.chart.result[0];
+                const { map, ordered } = buildDailyHistory(result.timestamp, result.indicators.quote[0].close);
+                
+                goldData.historyMap = map;
+                goldData.sortedPrices = ordered;
+
+                const metaTime = result.meta?.regularMarketTime;
+                if (metaTime) {
+                    goldData.lastMarketTime = new Date(metaTime * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+                }
+
+                if (ordered.length >= 2) {
+                    const closes = ordered.map(d => d.close);
+                    const current = closes[closes.length - 1];
+                    const prev = closes[closes.length - 2];
+                    const d7 = closes[Math.max(0, closes.length - 7)];
+                    const d30 = closes[Math.max(0, closes.length - 30)];
+
+                    goldData.open = parseFloat((((current - prev) / prev) * 100).toFixed(2));
+                    goldData.d7 = parseFloat((((current - d7) / d7) * 100).toFixed(2));
+                    goldData.d30 = parseFloat((((current - d30) / d30) * 100).toFixed(2));
+                    return true;
+                }
+            } catch (err) {
+                const stooqGold = await fetchStooqFallback('xauusd');
+                if (stooqGold) {
+                    goldData.historyMap = stooqGold.map;
+                    goldData.sortedPrices = stooqGold.ordered;
+                    goldData.lastMarketTime = stooqGold.marketTime;
+                    const closes = stooqGold.ordered.map(d => d.close);
+                    const current = closes[closes.length - 1];
+                    const prev = closes[closes.length - 2];
+                    const d7 = closes[Math.max(0, closes.length - 7)];
+                    const d30 = closes[Math.max(0, closes.length - 30)];
+
+                    goldData.open = parseFloat((((current - prev) / prev) * 100).toFixed(2));
+                    goldData.d7 = parseFloat((((current - d7) / d7) * 100).toFixed(2));
+                    goldData.d30 = parseFloat((((current - d30) / d30) * 100).toFixed(2));
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        async function fetchAssetMarketData(item) {
+            const targetUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${item.yahooSymbol}?range=45d&interval=1d`;
+            let historyResult = null;
+
+            try {
+                const json = await fetchJsonWithProxyRotator(targetUrl);
+                const result = json.chart.result[0];
+                const { map, ordered } = buildDailyHistory(result.timestamp, result.indicators.quote[0].close);
+                const metaTime = result.meta?.regularMarketTime;
+                const formattedTime = metaTime 
+                    ? new Date(metaTime * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+                    : (ordered.length ? ordered[ordered.length - 1].date : null);
+
+                historyResult = { map, ordered, marketTime: formattedTime };
+            } catch (err) {
+                historyResult = await fetchStooqFallback(item.stooqSymbol);
+            }
+
+            if (historyResult && historyResult.ordered.length >= 2) {
+                item.historyMap = historyResult.map;
+                item.ordered = historyResult.ordered;
+                item.lastMarketTime = historyResult.marketTime;
+
+                const nominalCloses = item.ordered.map(d => d.close);
+                const current = nominalCloses[nominalCloses.length - 1];
+                const prev = nominalCloses[nominalCloses.length - 2];
+                const d7 = nominalCloses[Math.max(0, nominalCloses.length - 7)];
+                const d30 = nominalCloses[Math.max(0, nominalCloses.length - 30)];
+
+                item.open = parseFloat((((current - prev) / prev) * 100).toFixed(2));
+                item.d7 = parseFloat((((current - d7) / d7) * 100).toFixed(2));
+                item.d30 = parseFloat((((current - d30) / d30) * 100).toFixed(2));
+
+                item.sma7Nom = evaluateSMAStatus(nominalCloses, 7);
+                item.sma30Nom = evaluateSMAStatus(nominalCloses, 30);
+
+                if (goldData.sortedPrices.length > 0) {
+                    let lastKnownGold = goldData.sortedPrices[0].close;
+                    const goldPricedCloses = item.ordered.map(entry => {
+                        if (goldData.historyMap[entry.date]) {
+                            lastKnownGold = goldData.historyMap[entry.date];
+                        } else {
+                            const priorGold = goldData.sortedPrices.filter(g => g.date <= entry.date);
+                            if (priorGold.length > 0) {
+                                lastKnownGold = priorGold[priorGold.length - 1].close;
+                            }
+                        }
+                        return entry.close / lastKnownGold;
+                    });
+
+                    item.sma7Gold = evaluateSMAStatus(goldPricedCloses, 7);
+                    item.sma30Gold = evaluateSMAStatus(goldPricedCloses, 30);
+                }
+                return true;
+            }
+            return false;
+        }
+
+        function computeGlobalPortfolioValuation() {
+            if (portfolioData.some(item => !item.ordered || item.ordered.length === 0)) return;
+
+            const dateSet = new Set();
+            portfolioData.forEach(item => item.ordered.forEach(d => dateSet.add(d.date)));
+            const sortedDates = Array.from(dateSet).sort();
+
+            const basePrices = {};
+            portfolioData.forEach(item => {
+                const firstValid = item.ordered.find(d => d.close != null);
+                basePrices[item.id] = firstValid ? firstValid.close : 1;
+            });
+
+            const portfolioNominalCloses = [];
+            const portfolioGoldCloses = [];
+
+            sortedDates.forEach(date => {
+                let nominalSum = 0;
+                let goldSum = 0;
+                let validCount = 0;
+
+                portfolioData.forEach(item => {
+                    const close = item.historyMap[date];
+                    if (close != null) {
+                        const normalizedNominal = (close / basePrices[item.id]) * 100;
+                        nominalSum += 0.25 * normalizedNominal;
+
+                        let goldClose = goldData.historyMap[date];
+                        if (!goldClose && goldData.sortedPrices.length > 0) {
+                            const priorGold = goldData.sortedPrices.filter(g => g.date <= date);
+                            goldClose = priorGold.length > 0 ? priorGold[priorGold.length - 1].close : 1;
+                        }
+                        const goldPricedItem = close / (goldClose || 1);
+                        if (!basePrices[item.id + '_gold']) {
+                            const firstGoldClose = item.ordered[0].close / (goldData.historyMap[item.ordered[0].date] || (goldData.sortedPrices[0]?.close || 1));
+                            basePrices[item.id + '_gold'] = firstGoldClose || 1;
+                        }
+                        const normalizedGold = (goldPricedItem / basePrices[item.id + '_gold']) * 100;
+                        goldSum += 0.25 * normalizedGold;
+
+                        validCount++;
+                    }
+                });
+
+                if (validCount === 4) {
+                    portfolioNominalCloses.push(nominalSum);
+                    portfolioGoldCloses.push(goldSum);
+                }
+            });
+
+            if (portfolioNominalCloses.length > 0) {
+                globalValuation.sma7Nom = evaluateSMAStatus(portfolioNominalCloses, 7);
+                globalValuation.sma30Nom = evaluateSMAStatus(portfolioNominalCloses, 30);
+                globalValuation.sma7Gold = evaluateSMAStatus(portfolioGoldCloses, 7);
+                globalValuation.sma30Gold = evaluateSMAStatus(portfolioGoldCloses, 30);
+            }
+        }
+
+        async function fetchAllData() {
+            const updateBtnText = document.getElementById('update-btn-text');
+            const refreshIcon = document.getElementById('refresh-icon');
+
+            updateBtnText.innerText = "Syncing...";
+            refreshIcon.classList.add('animate-spin');
+
+            const goldOk = await fetchGoldData();
+            const assetResults = await Promise.all(portfolioData.map(item => fetchAssetMarketData(item)));
+            
+            const successCount = assetResults.filter(Boolean).length;
+
+            if (successCount > 0) {
+                computeGlobalPortfolioValuation();
+                const latestAssetWithTime = portfolioData.find(a => a.lastMarketTime);
+                const actualDataTimestamp = latestAssetWithTime?.lastMarketTime || goldData.lastMarketTime || "Latest Market Session";
+
+                if (successCount === 4 && goldOk) {
+                    syncState = {
+                        status: "Live Market Feed Active (4/4 Assets + XAU)",
+                        dataDate: actualDataTimestamp,
+                        isLive: true
+                    };
+                } else {
+                    syncState = {
+                        status: `Partial Live Sync (${successCount}/4 Assets Updated)`,
+                        dataDate: actualDataTimestamp,
+                        isLive: true
+                    };
+                }
+            } else {
+                syncState = {
+                    status: "Offline / Proxy Blocked — Showing Static Fallback",
+                    dataDate: BASELINE_SNAPSHOT_DATE,
+                    isLive: false
+                };
+            }
+
+            updateBtnText.innerText = "Update";
+            refreshIcon.classList.remove('animate-spin');
+
+            renderGrid();
+            updateSyncStatusUI();
+        }
+
+        function updateSyncStatusUI() {
+            const dot = document.getElementById('sync-status-dot');
+            const text = document.getElementById('sync-status-text');
+            const timeEl = document.getElementById('sync-timestamp');
+
+            text.innerText = syncState.status;
+            timeEl.innerText = syncState.dataDate;
+
+            if (syncState.isLive) {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0";
+                timeEl.className = "text-emerald-400 font-semibold";
+            } else {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0";
+                timeEl.className = "text-amber-400 font-semibold";
+            }
+        }
+
+        function toggleExpand(id) {
+            if (id === 'global') {
+                const el = document.getElementById('expand-global');
+                const isOpen = el.classList.contains('max-h-96');
+                if (isOpen) {
+                    el.classList.remove('max-h-96', 'opacity-100');
+                    el.classList.add('max-h-0', 'opacity-0');
+                } else {
+                    el.classList.remove('max-h-0', 'opacity-0');
+                    el.classList.add('max-h-96', 'opacity-100');
+                }
+            } else {
+                const item = portfolioData.find(d => d.id === id);
+                if (item) {
+                    item.expanded = !item.expanded;
+                    renderGrid();
+                }
+            }
+        }
+
+        function getValuationColor(status) {
+            return status === 'Cheap' ? 'text-emerald-400' : 'text-rose-400';
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('tickers-grid');
+            grid.innerHTML = '';
+
+            let totalOpen = 0, total7d = 0, total30d = 0;
+
+            portfolioData.forEach(item => {
+                totalOpen += item.open * 0.25;
+                total7d += item.d7 * 0.25;
+                total30d += item.d30 * 0.25;
+
+                const openVsGold = calcVsGold(item.open, goldData.open);
+                const d7VsGold = calcVsGold(item.d7, goldData.d7);
+                const d30VsGold = calcVsGold(item.d30, goldData.d30);
+
+                const card = document.createElement('div');
+                card.onclick = () => toggleExpand(item.id);
+                
+                const gridSpanClass = item.expanded ? 'col-span-2' : 'col-span-1';
+                
+                card.className = `${gridSpanClass} bg-slate-900 border border-slate-800 hover:border-slate-700 p-5 rounded-2xl shadow-lg cursor-pointer transition-all duration-300 flex flex-col justify-between`;
+                
+                card.innerHTML = `
+                    <div class="flex items-center justify-between w-full">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="text-3xl shrink-0 p-1.5 bg-slate-800/80 rounded-xl">${item.icon}</span>
+                            <div class="min-w-0">
+                                <h3 class="font-bold text-sm text-slate-100 tracking-wide truncate">${item.ticker}</h3>
+                                <p class="text-[11px] text-slate-400 truncate">${item.name}</p>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0 ml-3">
+                            <span class="font-mono font-bold text-base ${item.open >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+                                ${item.open >= 0 ? '+' : ''}${item.open.toFixed(2)}%
+                            </span>
+                            <div class="text-[9px] text-amber-400 font-mono font-medium">
+                                ${openVsGold >= 0 ? '+' : ''}${openVsGold.toFixed(2)}% vs XAU
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tile-expand overflow-hidden ${item.expanded ? 'max-h-96 opacity-100 mt-4 pt-3 border-t border-slate-800/80' : 'max-h-0 opacity-0'}">
+                        <!-- Performance Table -->
+                        <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60 mb-3">
+                            <div class="grid grid-cols-3 gap-2 text-xs font-mono text-center">
+                                <div class="text-left font-sans text-[11px] text-slate-400">Timeframe</div>
+                                <div class="text-slate-400 text-[11px]">Nominal</div>
+                                <div class="text-amber-400/90 text-[11px]">vs Gold (XAU)</div>
+                                
+                                <div class="text-left font-sans text-slate-300 text-[11px]">Intraday</div>
+                                <div class="${item.open >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${item.open >= 0 ? '+' : ''}${item.open.toFixed(2)}%</div>
+                                <div class="${openVsGold >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${openVsGold >= 0 ? '+' : ''}${openVsGold.toFixed(2)}%</div>
+
+                                <div class="text-left font-sans text-slate-300 text-[11px]">7-Day</div>
+                                <div class="${item.d7 >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${item.d7 >= 0 ? '+' : ''}${item.d7.toFixed(2)}%</div>
+                                <div class="${d7VsGold >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${d7VsGold >= 0 ? '+' : ''}${d7VsGold.toFixed(2)}%</div>
+
+                                <div class="text-left font-sans text-slate-300 text-[11px]">30-Day</div>
+                                <div class="${item.d30 >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${item.d30 >= 0 ? '+' : ''}${item.d30.toFixed(2)}%</div>
+                                <div class="${d30VsGold >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${d30VsGold >= 0 ? '+' : ''}${d30VsGold.toFixed(2)}%</div>
+                            </div>
+                        </div>
+
+                        <!-- Moving Average Valuation Signal Table -->
+                        <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60 mb-3">
+                            <div class="grid grid-cols-3 gap-2 text-xs text-center items-center">
+                                <div class="text-left font-sans text-[11px] text-slate-400">Moving Avg</div>
+                                <div class="text-slate-400 text-[11px] font-mono">Nominal</div>
+                                <div class="text-amber-400/90 text-[11px] font-mono">in Gold (XAU)</div>
+                                
+                                <div class="text-left font-sans text-slate-300 text-[11px]">7-Day SMA</div>
+                                <div class="font-bold text-[11px] ${getValuationColor(item.sma7Nom)}">${item.sma7Nom}</div>
+                                <div class="font-bold text-[11px] ${getValuationColor(item.sma7Gold)}">${item.sma7Gold}</div>
+
+                                <div class="text-left font-sans text-slate-300 text-[11px]">30-Day SMA</div>
+                                <div class="font-bold text-[11px] ${getValuationColor(item.sma30Nom)}">${item.sma30Nom}</div>
+                                <div class="font-bold text-[11px] ${getValuationColor(item.sma30Gold)}">${item.sma30Gold}</div>
+                            </div>
+                        </div>
+
+                        <!-- Metadata Footer -->
+                        <div class="flex justify-between items-center text-[10px] text-slate-400 px-1">
+                            <span>Exchange: <strong class="text-slate-300 font-sans">${item.exchange}</strong></span>
+                            <span>ISIN: <strong class="text-slate-300 font-mono">${item.isin}</strong></span>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            // Update Top Global Aggregate Card Metrics & SMA Table
+            const globalOpenVsGold = calcVsGold(totalOpen, goldData.open);
+            const global7dVsGold = calcVsGold(total7d, goldData.d7);
+            const global30dVsGold = calcVsGold(total30d, goldData.d30);
+
+            document.getElementById('global-open').innerText = `${totalOpen >= 0 ? '+' : ''}${totalOpen.toFixed(2)}%`;
+            document.getElementById('global-open').className = `text-2xl font-extrabold font-mono ${totalOpen >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('global-open-gold').innerText = `${globalOpenVsGold >= 0 ? '+' : ''}${globalOpenVsGold.toFixed(2)}% vs XAU`;
+
+            document.getElementById('global-7d').innerText = `${total7d >= 0 ? '+' : ''}${total7d.toFixed(2)}%`;
+            document.getElementById('global-7d').className = `text-sm font-bold font-mono ${total7d >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('global-7d-gold').innerText = `${global7dVsGold >= 0 ? '+' : ''}${global7dVsGold.toFixed(2)}% vs XAU`;
+
+            document.getElementById('global-30d').innerText = `${total30d >= 0 ? '+' : ''}${total30d.toFixed(2)}%`;
+            document.getElementById('global-30d').className = `text-sm font-bold font-mono ${total30d >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('global-30d-gold').innerText = `${global30dVsGold >= 0 ? '+' : ''}${global30dVsGold.toFixed(2)}% vs XAU`;
+
+            const s7NomEl = document.getElementById('global-sma7-nom');
+            s7NomEl.innerText = globalValuation.sma7Nom;
+            s7NomEl.className = `font-bold text-[11px] ${getValuationColor(globalValuation.sma7Nom)}`;
+
+            const s7GoldEl = document.getElementById('global-sma7-gold');
+            s7GoldEl.innerText = globalValuation.sma7Gold;
+            s7GoldEl.className = `font-bold text-[11px] ${getValuationColor(globalValuation.sma7Gold)}`;
+
+            const s30NomEl = document.getElementById('global-sma30-nom');
+            s30NomEl.innerText = globalValuation.sma30Nom;
+            s30NomEl.className = `font-bold text-[11px] ${getValuationColor(globalValuation.sma30Nom)}`;
+
+            const s30GoldEl = document.getElementById('global-sma30-gold');
+            s30GoldEl.innerText = globalValuation.sma30Gold;
+            s30GoldEl.className = `font-bold text-[11px] ${getValuationColor(globalValuation.sma30Gold)}`;
+        }
+
+        window.onload = () => {
+            renderGrid();
+            fetchAllData();
+        };
+    </script>
+</body>
+</html>
