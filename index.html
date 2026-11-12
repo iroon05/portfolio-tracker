@@ -120,7 +120,7 @@
 
     <script>
         // =========================================================================
-        // PASTE YOUR CLOUDFLARE WORKER URL BELOW (e.g., "https://market-proxy.yourname.workers.dev")
+        // PASTE YOUR CLOUDFLARE WORKER URL BELOW
         // =========================================================================
         const CLOUDFLARE_WORKER_URL = "market-proxy.jonas-horad.workers.dev";
 
@@ -128,28 +128,28 @@
 
         let portfolioData = [
             { 
-                id: 'exv1', name: 'Europe 600 Banks', ticker: 'EXV1', yahooSymbol: 'EXV1.DE', stooqSymbol: 'exv1.de', icon: '🇪🇺', 
+                id: 'exv1', name: 'Europe 600 Banks', ticker: 'EXV1', stooqSymbol: 'exv1.de', icon: '🇪🇺', 
                 isin: 'DE000A0F5UJ7', exchange: 'Xetra (German Exchange)', 
                 open: 0.42, d7: 2.84, d30: -7.94, 
                 sma7Nom: 'Expensive', sma30Nom: 'Cheap', sma7Gold: 'Expensive', sma30Gold: 'Cheap',
                 expanded: false, historyMap: {}, ordered: [], lastMarketTime: null
             },
             { 
-                id: 'vusa', name: 'S&P 500 ETF', ticker: 'VUSA', yahooSymbol: 'VUSA.L', stooqSymbol: 'vusa.uk', icon: '🇺🇸', 
+                id: 'vusa', name: 'S&P 500 ETF', ticker: 'VUSA', stooqSymbol: 'vusa.uk', icon: '🇺🇸', 
                 isin: 'IE00B3XXRP09', exchange: 'London Stock Exchange', 
                 open: 1.75, d7: 0.55, d30: -3.60, 
                 sma7Nom: 'Expensive', sma30Nom: 'Cheap', sma7Gold: 'Cheap', sma30Gold: 'Cheap',
                 expanded: false, historyMap: {}, ordered: [], lastMarketTime: null
             },
             { 
-                id: 'vuke', name: 'FTSE 100 ETF', ticker: 'VUKE', yahooSymbol: 'VUKE.L', stooqSymbol: 'vuke.uk', icon: '🇬🇧', 
+                id: 'vuke', name: 'FTSE 100 ETF', ticker: 'VUKE', stooqSymbol: 'vuke.uk', icon: '🇬🇧', 
                 isin: 'IE00B810Q511', exchange: 'London Stock Exchange', 
                 open: 0.68, d7: 0.16, d30: 1.68, 
                 sma7Nom: 'Expensive', sma30Nom: 'Expensive', sma7Gold: 'Cheap', sma30Gold: 'Expensive',
                 expanded: false, historyMap: {}, ordered: [], lastMarketTime: null
             },
             { 
-                id: 'xdjp', name: 'Nikkei 225 ETF', ticker: 'XDJP', yahooSymbol: 'XDJP.L', stooqSymbol: 'xdjp.uk', icon: '🇯🇵', 
+                id: 'xdjp', name: 'Nikkei 225 ETF', ticker: 'XDJP', stooqSymbol: 'xdjp.uk', icon: '🇯🇵', 
                 isin: 'LU0839027447', exchange: 'London Stock Exchange', 
                 open: 2.78, d7: 1.84, d30: -0.82, 
                 sma7Nom: 'Expensive', sma30Nom: 'Cheap', sma7Gold: 'Expensive', sma30Gold: 'Cheap',
@@ -175,165 +175,75 @@
             return currentPrice < sma ? 'Cheap' : 'Expensive';
         }
 
-        function buildDailyHistory(timestamps, closes) {
-            const map = {};
-            const ordered = [];
-            for (let i = 0; i < timestamps.length; i++) {
-                if (closes[i] != null) {
-                    const dateKey = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
-                    map[dateKey] = closes[i];
-                    ordered.push({ date: dateKey, close: closes[i], ts: timestamps[i] });
-                }
-            }
-            return { map, ordered };
-        }
+        // Fetch Stooq CSV via Cloudflare Worker Proxy
+        async function fetchStooqData(stooqSymbol) {
+            const stooqUrl = `https://stooq.com/q/d/l/?s=${stooqSymbol}&i=d`;
+            const cacheBuster = `_cb=${Date.now()}`;
+            const bustedUrl = `${stooqUrl}&${cacheBuster}`;
 
-        // Builds gateway list prioritizing your dedicated Cloudflare Worker
-        function getProxyGateways() {
-            const gateways = [];
+            let proxyTargetUrl = bustedUrl;
             if (CLOUDFLARE_WORKER_URL && CLOUDFLARE_WORKER_URL !== "YOUR_CLOUDFLARE_WORKER_URL") {
                 const cleanWorkerUrl = CLOUDFLARE_WORKER_URL.replace(/\/$/, "");
-                gateways.push((url) => `${cleanWorkerUrl}/?url=${encodeURIComponent(url)}`);
+                proxyTargetUrl = `${cleanWorkerUrl}/?url=${encodeURIComponent(bustedUrl)}`;
             }
-            // Backup public gateways if worker URL isn't configured yet
-            gateways.push(
-                (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
-            );
-            return gateways;
-        }
 
-        async function fetchJsonWithProxyRotator(targetUrl) {
-            const cacheBuster = `_cb=${Date.now()}`;
-            const bustedUrl = targetUrl.includes('?') ? `${targetUrl}&${cacheBuster}` : `${targetUrl}?${cacheBuster}`;
-            const gateways = getProxyGateways();
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 7000);
+                const res = await fetch(proxyTargetUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
 
-            for (const buildGatewayUrl of gateways) {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 7000);
-                    
-                    const res = await fetch(buildGatewayUrl(bustedUrl), { signal: controller.signal });
-                    clearTimeout(timeoutId);
+                if (!res.ok) return null;
+                const csvText = await res.text();
+                const lines = csvText.trim().split('\n');
+                if (lines.length < 10 || !lines[0].startsWith('Date')) return null;
 
-                    if (!res.ok) continue;
-                    const parsed = await res.json();
+                const recentLines = lines.slice(-45);
+                const map = {};
+                const ordered = [];
 
-                    if (parsed && parsed.chart && parsed.chart.result && parsed.chart.result[0]) {
-                        return parsed;
+                for (const line of recentLines) {
+                    const cols = line.split(',');
+                    const dateStr = cols[0];
+                    const closeVal = parseFloat(cols[4]);
+                    if (dateStr && !isNaN(closeVal)) {
+                        map[dateStr] = closeVal;
+                        ordered.push({ date: dateStr, close: closeVal, ts: Math.floor(new Date(dateStr).getTime() / 1000) });
                     }
-                } catch (err) {
-                    // Try next gateway
                 }
-            }
-            throw new Error(`All proxy gateways failed for ${targetUrl}`);
-        }
 
-        async function fetchStooqFallback(stooqSymbol) {
-            const stooqUrl = `https://stooq.com/q/d/l/?s=${stooqSymbol}&i=d`;
-            const gateways = getProxyGateways();
-
-            for (const buildGatewayUrl of gateways) {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 7000);
-                    const res = await fetch(buildGatewayUrl(stooqUrl), { signal: controller.signal });
-                    clearTimeout(timeoutId);
-
-                    if (!res.ok) continue;
-                    const csvText = await res.text();
-                    const lines = csvText.trim().split('\n');
-                    if (lines.length < 10 || !lines[0].startsWith('Date')) continue;
-
-                    const recentLines = lines.slice(-45);
-                    const map = {};
-                    const ordered = [];
-
-                    for (const line of recentLines) {
-                        const cols = line.split(',');
-                        const dateStr = cols[0];
-                        const closeVal = parseFloat(cols[4]);
-                        if (dateStr && !isNaN(closeVal)) {
-                            map[dateStr] = closeVal;
-                            ordered.push({ date: dateStr, close: closeVal, ts: Math.floor(new Date(dateStr).getTime() / 1000) });
-                        }
-                    }
-
-                    if (ordered.length >= 2) {
-                        return { map, ordered, marketTime: ordered[ordered.length - 1].date + " (EOD)" };
-                    }
-                } catch (err) {
-                    // Continue
+                if (ordered.length >= 2) {
+                    return { map, ordered, marketTime: ordered[ordered.length - 1].date + " (Stooq EOD)" };
                 }
+            } catch (err) {
+                console.warn(`Stooq fetch failed for ${stooqSymbol}`, err);
             }
             return null;
         }
 
         async function fetchGoldData() {
-            const targetUrl = `https://query2.finance.yahoo.com/v8/finance/chart/GC=F?range=45d&interval=1d`;
-            try {
-                const json = await fetchJsonWithProxyRotator(targetUrl);
-                const result = json.chart.result[0];
-                const { map, ordered } = buildDailyHistory(result.timestamp, result.indicators.quote[0].close);
+            const stooqGold = await fetchStooqData('xauusd');
+            if (stooqGold) {
+                goldData.historyMap = stooqGold.map;
+                goldData.sortedPrices = stooqGold.ordered;
+                goldData.lastMarketTime = stooqGold.marketTime;
                 
-                goldData.historyMap = map;
-                goldData.sortedPrices = ordered;
+                const closes = stooqGold.ordered.map(d => d.close);
+                const current = closes[closes.length - 1];
+                const prev = closes[closes.length - 2];
+                const d7 = closes[Math.max(0, closes.length - 7)];
+                const d30 = closes[Math.max(0, closes.length - 30)];
 
-                const metaTime = result.meta?.regularMarketTime;
-                if (metaTime) {
-                    goldData.lastMarketTime = new Date(metaTime * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-                }
-
-                if (ordered.length >= 2) {
-                    const closes = ordered.map(d => d.close);
-                    const current = closes[closes.length - 1];
-                    const prev = closes[closes.length - 2];
-                    const d7 = closes[Math.max(0, closes.length - 7)];
-                    const d30 = closes[Math.max(0, closes.length - 30)];
-
-                    goldData.open = parseFloat((((current - prev) / prev) * 100).toFixed(2));
-                    goldData.d7 = parseFloat((((current - d7) / d7) * 100).toFixed(2));
-                    goldData.d30 = parseFloat((((current - d30) / d30) * 100).toFixed(2));
-                    return true;
-                }
-            } catch (err) {
-                const stooqGold = await fetchStooqFallback('xauusd');
-                if (stooqGold) {
-                    goldData.historyMap = stooqGold.map;
-                    goldData.sortedPrices = stooqGold.ordered;
-                    goldData.lastMarketTime = stooqGold.marketTime;
-                    const closes = stooqGold.ordered.map(d => d.close);
-                    const current = closes[closes.length - 1];
-                    const prev = closes[closes.length - 2];
-                    const d7 = closes[Math.max(0, closes.length - 7)];
-                    const d30 = closes[Math.max(0, closes.length - 30)];
-
-                    goldData.open = parseFloat((((current - prev) / prev) * 100).toFixed(2));
-                    goldData.d7 = parseFloat((((current - d7) / d7) * 100).toFixed(2));
-                    goldData.d30 = parseFloat((((current - d30) / d30) * 100).toFixed(2));
-                    return true;
-                }
+                goldData.open = parseFloat((((current - prev) / prev) * 100).toFixed(2));
+                goldData.d7 = parseFloat((((current - d7) / d7) * 100).toFixed(2));
+                goldData.d30 = parseFloat((((current - d30) / d30) * 100).toFixed(2));
+                return true;
             }
             return false;
         }
 
         async function fetchAssetMarketData(item) {
-            const targetUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${item.yahooSymbol}?range=45d&interval=1d`;
-            let historyResult = null;
-
-            try {
-                const json = await fetchJsonWithProxyRotator(targetUrl);
-                const result = json.chart.result[0];
-                const { map, ordered } = buildDailyHistory(result.timestamp, result.indicators.quote[0].close);
-                const metaTime = result.meta?.regularMarketTime;
-                const formattedTime = metaTime 
-                    ? new Date(metaTime * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
-                    : (ordered.length ? ordered[ordered.length - 1].date : null);
-
-                historyResult = { map, ordered, marketTime: formattedTime };
-            } catch (err) {
-                historyResult = await fetchStooqFallback(item.stooqSymbol);
-            }
+            const historyResult = await fetchStooqData(item.stooqSymbol);
 
             if (historyResult && historyResult.ordered.length >= 2) {
                 item.historyMap = historyResult.map;
@@ -452,13 +362,13 @@
 
                 if (successCount === 4 && goldOk) {
                     syncState = {
-                        status: "Live Market Feed Active (4/4 Assets + XAU)",
+                        status: "Stooq Feed Active (4/4 Assets + XAU)",
                         dataDate: actualDataTimestamp,
                         isLive: true
                     };
                 } else {
                     syncState = {
-                        status: `Partial Live Sync (${successCount}/4 Assets Updated)`,
+                        status: `Partial Stooq Sync (${successCount}/4 Assets Updated)`,
                         dataDate: actualDataTimestamp,
                         isLive: true
                     };
